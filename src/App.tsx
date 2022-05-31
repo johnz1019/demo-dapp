@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ethers } from "ethers";
 
 import { sequence } from "0xsequence";
@@ -16,6 +16,7 @@ import skyweaverBannerUrl from "./images/skyweaver-banner.png";
 
 import { Group } from "./components/Group";
 import { OpenWalletIntent, Settings } from "@0xsequence/provider";
+import { NetworkConfig } from "0xsequence/dist/declarations/src/network";
 
 configureLogger({ logLevel: "DEBUG" });
 
@@ -33,6 +34,12 @@ const App = () => {
 
   // Example of changing the walletAppURL
   // const wallet = new sequence.Wallet(network, { walletAppURL: 'https://sequence.app' })
+
+  const [networks, setNetworks] = useState<NetworkConfig[]>([])
+
+  useEffect(() => {
+    wallet.getNetworks().then(setNetworks)
+  }, [wallet])
 
   wallet.on("message", (message) => {
     console.log("wallet event (message):", message);
@@ -97,7 +104,7 @@ const App = () => {
           await wallet.getAddress(),
           connectDetails.proof.typedData,
           decodedProof.signature,
-          await wallet.getAuthChainId()
+          1
         );
         console.log("isValid?", isValid);
         if (!isValid) throw new Error("sig invalid");
@@ -144,12 +151,7 @@ const App = () => {
 
   const getDefaultChainID = async () => {
     console.log("TODO");
-  };
-
-  const getAuthChainID = async () => {
-    const authChainId = await wallet.getAuthChainId();
-    console.log("auth chainId:", authChainId);
-  };
+  };;
 
   const getChainID = async () => {
     console.log("chainId:", await wallet.getChainId());
@@ -187,7 +189,7 @@ const App = () => {
     console.log("networks:", await wallet.getNetworks());
   };
 
-  const signMessage = async () => {
+  const signMessage = async (network: NetworkConfig) => {
     console.log("signing message...");
     const signer = wallet.getSigner();
 
@@ -218,7 +220,7 @@ I took the one less traveled by,
 And that has made all the difference.`;
 
     // sign
-    const sig = await signer.signMessage(message);
+    const sig = await signer.signMessage(message, network);
     console.log("signature:", sig);
 
     // validate
@@ -226,7 +228,7 @@ And that has made all the difference.`;
       await wallet.getAddress(),
       ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message)),
       sig,
-      await signer.getChainId()
+      network.chainId
     );
     console.log("isValidHex?", isValidHex);
 
@@ -234,7 +236,7 @@ And that has made all the difference.`;
       await wallet.getAddress(),
       message,
       sig,
-      await signer.getChainId()
+      network.chainId
     );
     console.log("isValid?", isValid);
     if (!isValid) throw new Error("sig invalid");
@@ -253,73 +255,8 @@ And that has made all the difference.`;
     // console.log('address match?', match)
   };
 
-  const signAuthMessage = async () => {
-    console.log("signing message on AuthChain...");
-    const signer = await wallet.getAuthSigner();
 
-    const message = "Hi there! Please sign this message, 123456789, thanks.";
-
-    // sign
-    const sig = await signer.signMessage(message, await signer.getChainId()); //, false)
-    console.log("signature:", sig);
-
-    // here we have sig from above method, on defaultChain ..
-    const notExpecting =
-      "0x0002000134ab8771a3f2f7556dab62622ce62224d898175eddfdd50c14127c5a2bb0c8703b3b3aadc3fa6a63dd2dc66107520bc90031c015aaa4bf381f6d88d9797e9b9f1c02010144a0c1cbe7b29d97059dba8bbfcab2405dfb8420000145693d051135be70f588948aeaa043bd3ac92d98057e4a2c0fbd0f7289e028f828a31c62051f0d5fb96768c635a16eacc325d9e537ca5c8c5d2635b8de14ebce1c02";
-    if (sig === notExpecting) {
-      throw new Error(
-        "this sig is from the DefaultChain, not what we expected.."
-      );
-    }
-
-    // validate
-    const isValidHex = await wallet.utils.isValidMessageSignature(
-      await wallet.getAddress(),
-      ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message)),
-      sig,
-      await signer.getChainId()
-    );
-    console.log("isValidHex?", isValidHex);
-
-    const isValid = await wallet.utils.isValidMessageSignature(
-      await wallet.getAddress(),
-      message,
-      sig,
-      await signer.getChainId()
-    );
-    console.log("isValid?", isValid);
-    if (!isValid) throw new Error("sig invalid");
-
-    console.log(
-      "is wallet deployed on mainnet?",
-      await wallet.isDeployed("mainnet")
-    );
-    console.log(
-      "is wallet deployed on matic?",
-      await wallet.isDeployed("polygon")
-    );
-
-    // recover
-    //
-    // TODO: the recovery here will not work, because to use addressOf(), we must have
-    // the init config for a wallet, wait for next index PR to come through then can fix this.
-    //
-    // TODO/NOTE: in order to recover this, the wallet needs to be updated on-chain,
-    // or we need the init config.. check if its deployed and updated?
-    // NOTE: this should work though, lets confirm it is deployed, and that the config is updated..
-    // const walletConfig = await wallet.utils.recoverWalletConfigFromMessage(
-    //   await wallet.getAddress(),
-    //   message,
-    //   sig,
-    //   await signer.getChainId()
-    // )
-
-    // const match = walletConfig.address.toLowerCase() === (await wallet.getAddress()).toLowerCase()
-    // // if (!match) throw new Error('recovery address does not match')
-    // console.log('address match?', match)
-  };
-
-  const signTypedData = async () => {
+  const signTypedData = async (network: NetworkConfig) => {
     console.log("signing typedData...");
 
     const typedData: sequence.utils.TypedData = {
@@ -346,7 +283,8 @@ And that has made all the difference.`;
     const sig = await signer.signTypedData(
       typedData.domain,
       typedData.types,
-      typedData.message
+      typedData.message,
+      network
     );
     console.log("signature:", sig);
 
@@ -355,7 +293,7 @@ And that has made all the difference.`;
       await wallet.getAddress(),
       typedData,
       sig,
-      await signer.getChainId()
+      network.chainId
     );
     console.log("isValid?", isValid);
     if (!isValid) throw new Error("sig invalid");
@@ -377,7 +315,7 @@ And that has made all the difference.`;
   const signETHAuth = async () => {
     const address = await wallet.getAddress();
 
-    const authSigner = await wallet.getAuthSigner();
+    const authSigner = await wallet.getSigner(137)
     console.log("AUTH CHAINID..", await authSigner.getChainId());
     const authChainId = await authSigner.getChainId();
 
@@ -524,11 +462,11 @@ And that has made all the difference.`;
     console.log("txnResponse:", txnResp);
   };
 
-  const sendETHSidechain = async () => {
+  const sendETHSidechain = async (network: NetworkConfig) => {
     // const signer = wallet.getSigner(137)
     // Select network that isn't the DefaultChain..
     const networks = await wallet.getNetworks();
-    const n = networks.find((n) => n.isAuthChain);
+    const n = networks.find((n) => network.chainId === n.chainId);
     sendETH(wallet.getSigner(n));
   };
 
@@ -587,7 +525,6 @@ And that has made all the difference.`;
         <Button onClick={() => isConnected()}>Is Connected?</Button>
         <Button onClick={() => isOpened()}>Is Opened?</Button>
         <Button onClick={() => getDefaultChainID()}>DefaultChain?</Button>
-        <Button onClick={() => getAuthChainID()}>AuthChain?</Button>
       </Group>
 
       <Group label="State" layout="grid">
@@ -599,11 +536,9 @@ And that has made all the difference.`;
       </Group>
 
       <Group label="Signing" layout="grid">
-        <Button onClick={() => signMessage()}>Sign Message</Button>
-        <Button onClick={() => signTypedData()}>Sign TypedData</Button>
-        <Button onClick={() => signAuthMessage()}>
-          Sign Message on AuthChain
-        </Button>
+        {networks && networks.map((n) => <Button onClick={() => signMessage(n)}>Sign message on {n.name}</Button>)}
+        {networks && networks.map((n) => <Button onClick={() => signTypedData(n)}>Sign TypedData on {n.name}</Button>)}
+
         <Button onClick={() => signETHAuth()}>Sign ETHAuth</Button>
       </Group>
 
@@ -613,7 +548,7 @@ And that has made all the difference.`;
 
       <Group label="Transactions" layout="grid">
         <Button onClick={() => sendETH()}>Send on DefaultChain</Button>
-        <Button onClick={() => sendETHSidechain()}>Send on AuthChain</Button>
+        {networks && networks.map((n) => <Button onClick={() => sendETHSidechain(n)}>Send on {n.name}</Button>)}
         <Button onClick={() => sendDAI()}>Send DAI</Button>
         <Button onClick={() => send1155Tokens()}>Send ERC-1155 Tokens</Button>
         {/* <Button onClick={() => sendBatchTransaction()}>Send Batch Txns</Button> */}
