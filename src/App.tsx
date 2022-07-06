@@ -184,7 +184,7 @@ const App = () => {
   };
 
   const signMessage = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 10000));
+    await new Promise((resolve) => setTimeout(resolve, 10001));
     console.log("signing message...");
     const signer = wallet.getSigner();
 
